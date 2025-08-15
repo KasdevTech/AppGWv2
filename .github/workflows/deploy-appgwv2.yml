@@ -19,9 +19,11 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    permissions:
+      id-token: write
+      contents: read
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Login to Azure
@@ -32,19 +34,17 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
           enable-AzPSSession: true
 
-      - name: Run PowerShell Deployment
+      - name: Install Az PowerShell modules
         shell: pwsh
         run: |
-          # Import helper modules
-          Import-Module ./Common-Modules/ValidationHelpers.psm1 -Force
-          Import-Module ./Common-Modules/ConfigurationHelpers.psm1 -Force
+          Install-Module -Name Az -Repository PSGallery -Force -Scope CurrentUser -AllowClobber
+          Import-Module Az
+
+      - name: Deploy Application Gateway
+        shell: pwsh
+        run: |
           Import-Module ./AppGWv2/AppGWv2-Parameters.psm1 -Force
+          $params = $StandardAppGatewayParams
+          ./AppGWv2/Deploy-AppGWv2.ps1 @params
 
-          $paramSetName = "${{ github.event.inputs.paramset }}"
-          Write-Host "Using parameter set: $paramSetName"
-
-          # Retrieve the chosen parameter set as a hashtable
-          $params = Get-Variable -Name $paramSetName -ValueOnly
-
-          # Deploy
           ./AppGWv2/Deploy-AppGWv2.ps1 @params
