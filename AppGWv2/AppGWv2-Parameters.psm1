@@ -38,7 +38,7 @@ $StandardAppGatewayParams = @{
     PrivateIPAddress              = ""  # Required for PrivateOnly/Both
     
     # Backend Configuration
-    BackendAddresses              = @("10.0.2.10", "10.0.2.11")
+    BackendAddresses              = @("google.com", "kasdevtech.com")
     BackendPort                   = 80
     BackendProtocol               = "Http"
     
@@ -239,3 +239,4 @@ Export-ModuleMember -Variable @(
     'WAFAppGatewayParams',
     'PrivateOnlyAppGatewayParams'
 )
+
