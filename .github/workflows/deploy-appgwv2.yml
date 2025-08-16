@@ -10,11 +10,7 @@ on:
       resource_group_name:
         description: 'Resource Group name override (optional)'
         required: false
-        type: string
-      app_gateway_name:
-        description: 'Application Gateway name override (optional)'
-        required: false
-        type: string        
+        type: string      
       paramset:
         description: 'Parameter set from AppGWv2-Parameters.psm1'
         required: true
@@ -98,11 +94,6 @@ jobs:
           
           # Set WhatIf mode from input
           $config.WhatIf = [System.Convert]::ToBoolean("${{ github.event.inputs.whatif }}")
-          
-          # Override Application Gateway name if provided
-          if ("${{ github.event.inputs.app_gateway_name }}" -ne "") {
-            $config.ApplicationGatewayName = "${{ github.event.inputs.app_gateway_name }}"
-          }
           
           # Override Resource Group name if provided
           if ("${{ github.event.inputs.resource_group_name }}" -ne "") {
