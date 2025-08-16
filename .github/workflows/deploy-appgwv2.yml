@@ -8,9 +8,25 @@ on:
         required: true
         type: choice
         options:
-          - StandardAppGatewayParams
-          - WAFAppGatewayParams
-          - PrivateOnlyAppGatewayParams
+          - BasicAppGwParams
+          - AdvancedAppGwParams
+      whatif:
+        description: 'Run in WhatIf mode (preview only)'
+        required: false
+        type: boolean
+        default: true
+      app_gateway_name:
+        description: 'Application Gateway name override (optional)'
+        required: false
+        type: string
+      resource_group_name:
+        description: 'Resource Group name override (optional)'
+        required: false
+        type: string
+      subscription_name:
+        description: 'Azure Subscription name override (optional)'
+        required: false
+        type: string
 
 permissions:
   id-token: write
@@ -39,12 +55,104 @@ jobs:
         run: |
           Install-Module -Name Az -Repository PSGallery -Force -Scope CurrentUser -AllowClobber
           Import-Module Az
+          
+      - name: Validate Environment
+        shell: pwsh
+        run: |
+          Write-Host "[INFO] Validating Azure PowerShell environment..." -ForegroundColor Cyan
+          
+          # Check Az module
+          $azModule = Get-Module -ListAvailable -Name Az
+          if ($azModule) {
+            Write-Host "[OK] Az PowerShell module installed: $($azModule.Version)" -ForegroundColor Green
+          } else {
+            Write-Error "[ERROR] Az PowerShell module not found"
+            exit 1
+          }
+          
+          # Check authentication
+          $context = Get-AzContext
+          if ($context) {
+            Write-Host "[OK] Azure authentication successful" -ForegroundColor Green
+            Write-Host "  Subscription: $($context.Subscription.Name)" -ForegroundColor White
+            Write-Host "  Tenant: $($context.Tenant.Id)" -ForegroundColor White
+          } else {
+            Write-Error "[ERROR] Azure authentication failed"
+            exit 1
+          }
+          
+          # Validate parameter module
+          if (Test-Path "./AppGWv2/AppGWv2-Parameters.psm1") {
+            Write-Host "[OK] Parameter module found" -ForegroundColor Green
+          } else {
+            Write-Error "[ERROR] Parameter module not found"
+            exit 1
+          }
 
       - name: Deploy Application Gateway
         shell: pwsh
         run: |
           Import-Module ./AppGWv2/AppGWv2-Parameters.psm1 -Force
-          $params = $StandardAppGatewayParams
-          ./AppGWv2/Deploy-AppGWv2.ps1 @params
-
-          ./AppGWv2/Deploy-AppGWv2.ps1 @params
+          
+          # Get the configuration based on selected parameter set
+          $config = Get-AppGatewayConfiguration -ParameterSet "${{ github.event.inputs.paramset }}"
+          
+          # Set WhatIf mode from input
+          $config.WhatIf = [System.Convert]::ToBoolean("${{ github.event.inputs.whatif }}")
+          
+          # Override Application Gateway name if provided
+          if ("${{ github.event.inputs.app_gateway_name }}" -ne "") {
+            $config.ApplicationGatewayName = "${{ github.event.inputs.app_gateway_name }}"
+          }
+          
+          # Override Resource Group name if provided
+          if ("${{ github.event.inputs.resource_group_name }}" -ne "") {
+            $config.ResourceGroupName = "${{ github.event.inputs.resource_group_name }}"
+          }
+          
+          # Override Subscription name if provided
+          if ("${{ github.event.inputs.subscription_name }}" -ne "") {
+            $config.SubscriptionName = "${{ github.event.inputs.subscription_name }}"
+          }
+          
+          # Add GitHub Actions run context to the name for uniqueness
+          if (-not $config.WhatIf) {
+            $config.ApplicationGatewayName = "$($config.ApplicationGatewayName)-${{ github.run_number }}"
+          }
+          
+          Write-Host "[INFO] Deployment Configuration:" -ForegroundColor Cyan
+          Write-Host "  Parameter Set: ${{ github.event.inputs.paramset }}" -ForegroundColor White
+          Write-Host "  WhatIf Mode: $($config.WhatIf)" -ForegroundColor White
+          Write-Host "  Application Gateway: $($config.ApplicationGatewayName)" -ForegroundColor White
+          Write-Host "  Resource Group: $($config.ResourceGroupName)" -ForegroundColor White
+          Write-Host "  Subscription: $($config.SubscriptionName)" -ForegroundColor White
+          Write-Host "  GitHub Run: ${{ github.run_number }}" -ForegroundColor White
+          
+          # Execute deployment
+          ./AppGWv2/Deploy-AppGWv2.ps1 -AppGatewayConfiguration $config
+          
+      - name: Upload deployment artifacts
+        if: success() && github.event.inputs.whatif == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: appgw-deployment-${{ github.run_number }}
+          path: AppGWv2/output/
+          retention-days: 30
+          
+      - name: Deployment Summary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "=== Deployment Summary ===" -ForegroundColor Green
+          Write-Host "Parameter Set: ${{ github.event.inputs.paramset }}" -ForegroundColor White
+          Write-Host "WhatIf Mode: ${{ github.event.inputs.whatif }}" -ForegroundColor White
+          Write-Host "Application Gateway: ${{ github.event.inputs.app_gateway_name || 'Default from parameter set' }}" -ForegroundColor White
+          Write-Host "Resource Group: ${{ github.event.inputs.resource_group_name || 'Default from parameter set' }}" -ForegroundColor White
+          Write-Host "Subscription: ${{ github.event.inputs.subscription_name || 'Default from parameter set' }}" -ForegroundColor White
+          Write-Host "GitHub Run: ${{ github.run_number }}" -ForegroundColor White
+          Write-Host "Status: ${{ job.status }}" -ForegroundColor White
+          
+          if ("${{ github.event.inputs.whatif }}" -eq "true") {
+            Write-Host "[INFO] This was a preview run - no resources were created" -ForegroundColor Cyan
+          } else {
+            Write-Host "[INFO] This was a full deployment run" -ForegroundColor Yellow
