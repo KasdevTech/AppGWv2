@@ -117,8 +117,8 @@ $AdvancedAppGwParams = @{
     ResourceGroupName             = "kasdev-devtest-app-001"
     Location                      = "East US"
     ApplicationGatewayName        = "appgw-basic-v2"
-    SkuName                       = "Standard_v2"
-    SkuTier                       = "Standard_v2"
+    SkuName                       = "WAF_v2"
+    SkuTier                       = "WAF_v2"
     ConfigurationType             = "PublicOnly" # Change to "PublicOnly" or "PrivateOnly" or Both as needed
     PrivateIPAddress              = ""
     MinCapacity                   = 2
@@ -332,7 +332,7 @@ OutputPath                : Path for deployment output files
 function Get-BasicAppGwParams { return $BasicAppGwParams }
 function Get-AdvancedAppGwParams { return $AdvancedAppGwParams }
 
-# Smart Configuration Function - Automatically selects best configuration
+# Selects the configuration
 function Get-AppGatewayConfiguration {
     param(
         [Parameter(Mandatory = $true)]
@@ -367,4 +367,5 @@ Export-ModuleMember -Variable @(
     'BasicAppGwParams',
     'AdvancedAppGwParams'
 )
+
 
