@@ -136,7 +136,6 @@ jobs:
           Write-Host "=== Deployment Summary ===" -ForegroundColor Green
           Write-Host "Parameter Set: ${{ github.event.inputs.paramset }}" -ForegroundColor White
           Write-Host "WhatIf Mode: ${{ github.event.inputs.whatif }}" -ForegroundColor White
-          Write-Host "Application Gateway: ${{ github.event.inputs.app_gateway_name || 'Default from parameter set' }}" -ForegroundColor White
           Write-Host "Resource Group: ${{ github.event.inputs.resource_group_name || 'Default from parameter set' }}" -ForegroundColor White
           Write-Host "Subscription: ${{ github.event.inputs.subscription_name || 'Default from parameter set' }}" -ForegroundColor White
           Write-Host "GitHub Run: ${{ github.run_number }}" -ForegroundColor White
