@@ -155,3 +155,4 @@ jobs:
             Write-Host "[INFO] This was a preview run - no resources were created" -ForegroundColor Cyan
           } else {
             Write-Host "[INFO] This was a full deployment run" -ForegroundColor Yellow
+          }  
