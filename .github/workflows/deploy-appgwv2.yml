@@ -3,30 +3,29 @@ name: Deploy App Gateway v2
 on:
   workflow_dispatch:
     inputs:
-      paramset:
-        description: 'Parameter set from AppGWv2-Parameters.psm1'
-        required: true
-        type: choice
-        options:
-          - BasicAppGwParams
-          - AdvancedAppGwParams
-      whatif:
-        description: 'Run in WhatIf mode (preview only)'
-        required: false
-        type: boolean
-        default: true
-      app_gateway_name:
-        description: 'Application Gateway name override (optional)'
+      subscription_name:
+        description: 'Azure Subscription name override (optional)'
         required: false
         type: string
       resource_group_name:
         description: 'Resource Group name override (optional)'
         required: false
         type: string
-      subscription_name:
-        description: 'Azure Subscription name override (optional)'
+      app_gateway_name:
+        description: 'Application Gateway name override (optional)'
         required: false
-        type: string
+        type: string        
+      paramset:
+        description: 'Parameter set from AppGWv2-Parameters.psm1'
+        required: true
+        type: choice
+        options:
+          - BasicAppGwParams
+          - AdvancedAppGwParams  
+      whatif:
+        description: 'Run in WhatIf mode (preview only)'
+        required: false
+        type: boolean        
 
 permissions:
   id-token: write
