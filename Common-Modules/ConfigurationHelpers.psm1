@@ -543,5 +543,406 @@ function New-ApplicationGatewaySku {
     }
 }
 
+function New-ApplicationGatewayTags {
+    <#
+    .SYNOPSIS
+        Creates resource tags for Application Gateway
+    .PARAMETER Tags
+        Hashtable of tags to apply
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$Tags
+    )
+    
+    try {
+        Write-Host "$(printf '\u2139') Creating resource tags..." -ForegroundColor Blue
+        
+        # Validate and format tags
+        $formattedTags = @{}
+        foreach ($key in $Tags.Keys) {
+            if ($key -and $Tags[$key]) {
+                $formattedTags[$key] = $Tags[$key].ToString()
+            }
+        }
+        
+        Write-Host "$(printf '\u2713') Resource tags created - Count: $($formattedTags.Count)" -ForegroundColor Green
+        return $formattedTags
+    }
+    catch {
+        Write-Error "Failed to create resource tags: $($_.Exception.Message)"
+        throw
+    }
+}
+
+function New-ApplicationGatewayHealthProbe {
+    <#
+    .SYNOPSIS
+        Creates custom health probes for Application Gateway
+    .PARAMETER Name
+        Name of the health probe
+    .PARAMETER Protocol
+        Protocol for the probe (Http or Https)
+    .PARAMETER Host
+        Host header for the probe
+    .PARAMETER Path
+        Path for the probe request
+    .PARAMETER Interval
+        Interval between probes in seconds
+    .PARAMETER Timeout
+        Timeout for each probe in seconds
+    .PARAMETER UnhealthyThreshold
+        Number of failed probes before marking backend as unhealthy
+    .PARAMETER MatchStatusCodes
+        Array of acceptable HTTP status codes
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Http", "Https")]
+        [string]$Protocol,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$Host,
+        
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+        
+        [Parameter(Mandatory = $false)]
+        [int]$Interval = 30,
+        
+        [Parameter(Mandatory = $false)]
+        [int]$Timeout = 30,
+        
+        [Parameter(Mandatory = $false)]
+        [int]$UnhealthyThreshold = 3,
+        
+        [Parameter(Mandatory = $false)]
+        [string[]]$MatchStatusCodes = @("200-399")
+    )
+    
+    try {
+        Write-Host "$(printf '\u2139') Creating health probe: $Name..." -ForegroundColor Blue
+        
+        $probeParams = @{
+            Name = $Name
+            Protocol = $Protocol
+            Path = $Path
+            Interval = $Interval
+            Timeout = $Timeout
+            UnhealthyThreshold = $UnhealthyThreshold
+        }
+        
+        if ($Host) {
+            $probeParams.Host = $Host
+        } else {
+            $probeParams.PickHostNameFromBackendHttpSettings = $true
+        }
+        
+        # Create match condition for status codes
+        if ($MatchStatusCodes) {
+            $match = New-AzApplicationGatewayProbeHealthResponseMatch -StatusCode $MatchStatusCodes
+            $probeParams.Match = $match
+        }
+        
+        $probe = New-AzApplicationGatewayProbe @probeParams
+        
+        Write-Host "$(printf '\u2713') Health probe '$Name' created successfully" -ForegroundColor Green
+        return $probe
+    }
+    catch {
+        Write-Error "Failed to create health probe '$Name': $($_.Exception.Message)"
+        throw
+    }
+}
+
+function New-ApplicationGatewayUrlPathMap {
+    <#
+    .SYNOPSIS
+        Creates URL path-based routing map for Application Gateway
+    .PARAMETER Name
+        Name of the URL path map
+    .PARAMETER DefaultBackendPool
+        Default backend pool for unmatched requests
+    .PARAMETER DefaultBackendHttpSettings
+        Default backend HTTP settings for unmatched requests
+    .PARAMETER PathRules
+        Array of path-based routing rules
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        
+        [Parameter(Mandatory = $true)]
+        [Microsoft.Azure.Commands.Network.Models.PSApplicationGatewayBackendAddressPool]$DefaultBackendPool,
+        
+        [Parameter(Mandatory = $true)]
+        [Microsoft.Azure.Commands.Network.Models.PSApplicationGatewayBackendHttpSettings]$DefaultBackendHttpSettings,
+        
+        [Parameter(Mandatory = $true)]
+        [hashtable[]]$PathRules
+    )
+    
+    try {
+        Write-Host "$(printf '\u2139') Creating URL path map: $Name..." -ForegroundColor Blue
+        
+        $pathRuleObjects = @()
+        foreach ($rule in $PathRules) {
+            $pathRule = New-AzApplicationGatewayPathRuleConfig `
+                -Name $rule.Name `
+                -Paths $rule.Paths `
+                -BackendAddressPool $rule.BackendPool `
+                -BackendHttpSettings $rule.BackendHttpSettings
+            $pathRuleObjects += $pathRule
+        }
+        
+        $urlPathMap = New-AzApplicationGatewayUrlPathMapConfig `
+            -Name $Name `
+            -PathRules $pathRuleObjects `
+            -DefaultBackendAddressPool $DefaultBackendPool `
+            -DefaultBackendHttpSettings $DefaultBackendHttpSettings
+        
+        Write-Host "$(printf '\u2713') URL path map '$Name' created with $($PathRules.Count) rules" -ForegroundColor Green
+        return $urlPathMap
+    }
+    catch {
+        Write-Error "Failed to create URL path map '$Name': $($_.Exception.Message)"
+        throw
+    }
+}
+
+function New-ApplicationGatewayRedirectConfiguration {
+    <#
+    .SYNOPSIS
+        Creates redirect configuration for Application Gateway
+    .PARAMETER Name
+        Name of the redirect configuration
+    .PARAMETER RedirectType
+        Type of redirect (Permanent, Temporary, Found, SeeOther)
+    .PARAMETER TargetListenerName
+        Name of target listener for redirection
+    .PARAMETER TargetUrl
+        Target URL for redirection
+    .PARAMETER IncludePath
+        Whether to include the original path
+    .PARAMETER IncludeQueryString
+        Whether to include the original query string
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Permanent", "Temporary", "Found", "SeeOther")]
+        [string]$RedirectType,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$TargetListenerName,
+        
+        [Parameter(Mandatory = $false)]
+        [string]$TargetUrl,
+        
+        [Parameter(Mandatory = $false)]
+        [bool]$IncludePath = $true,
+        
+        [Parameter(Mandatory = $false)]
+        [bool]$IncludeQueryString = $true
+    )
+    
+    try {
+        Write-Host "$(printf '\u2139') Creating redirect configuration: $Name..." -ForegroundColor Blue
+        
+        $redirectParams = @{
+            Name = $Name
+            RedirectType = $RedirectType
+            IncludePath = $IncludePath
+            IncludeQueryString = $IncludeQueryString
+        }
+        
+        if ($TargetListenerName) {
+            # Target listener will be resolved during deployment
+            $redirectParams.TargetListenerName = $TargetListenerName
+        } elseif ($TargetUrl) {
+            $redirectParams.TargetUrl = $TargetUrl
+        } else {
+            throw "Either TargetListenerName or TargetUrl must be specified"
+        }
+        
+        Write-Host "$(printf '\u2713') Redirect configuration '$Name' created successfully" -ForegroundColor Green
+        return $redirectParams
+    }
+    catch {
+        Write-Error "Failed to create redirect configuration '$Name': $($_.Exception.Message)"
+        throw
+    }
+}
+
+function New-ApplicationGatewayRewriteRuleSet {
+    <#
+    .SYNOPSIS
+        Creates rewrite rule set for Application Gateway
+    .PARAMETER Name
+        Name of the rewrite rule set
+    .PARAMETER RewriteRules
+        Array of rewrite rules
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        
+        [Parameter(Mandatory = $true)]
+        [hashtable[]]$RewriteRules
+    )
+    
+    try {
+        Write-Host "$(printf '\u2139') Creating rewrite rule set: $Name..." -ForegroundColor Blue
+        
+        $rewriteRuleObjects = @()
+        foreach ($rule in $RewriteRules) {
+            $actionSet = New-AzApplicationGatewayRewriteRuleActionSet
+            
+            # Add request header configurations
+            if ($rule.RequestHeaderConfigurations) {
+                foreach ($headerConfig in $rule.RequestHeaderConfigurations) {
+                    $actionSet = Add-AzApplicationGatewayRewriteRuleRequestHeaderConfiguration `
+                        -RewriteRuleActionSet $actionSet `
+                        -HeaderName $headerConfig.HeaderName `
+                        -HeaderValue $headerConfig.HeaderValue
+                }
+            }
+            
+            # Add response header configurations
+            if ($rule.ResponseHeaderConfigurations) {
+                foreach ($headerConfig in $rule.ResponseHeaderConfigurations) {
+                    $actionSet = Add-AzApplicationGatewayRewriteRuleResponseHeaderConfiguration `
+                        -RewriteRuleActionSet $actionSet `
+                        -HeaderName $headerConfig.HeaderName `
+                        -HeaderValue $headerConfig.HeaderValue
+                }
+            }
+            
+            $rewriteRule = New-AzApplicationGatewayRewriteRule `
+                -Name $rule.Name `
+                -RuleSequence $rule.RuleSequence `
+                -ActionSet $actionSet
+            
+            $rewriteRuleObjects += $rewriteRule
+        }
+        
+        $rewriteRuleSet = New-AzApplicationGatewayRewriteRuleSet `
+            -Name $Name `
+            -RewriteRule $rewriteRuleObjects
+        
+        Write-Host "$(printf '\u2713') Rewrite rule set '$Name' created with $($RewriteRules.Count) rules" -ForegroundColor Green
+        return $rewriteRuleSet
+    }
+    catch {
+        Write-Error "Failed to create rewrite rule set '$Name': $($_.Exception.Message)"
+        throw
+    }
+}
+
+function New-ApplicationGatewayWAFCustomRule {
+    <#
+    .SYNOPSIS
+        Creates custom WAF rules for Application Gateway
+    .PARAMETER Name
+        Name of the custom rule
+    .PARAMETER Priority
+        Priority of the rule (1-100)
+    .PARAMETER RuleType
+        Type of rule (MatchRule or RateLimitRule)
+    .PARAMETER Action
+        Action to take (Allow, Block, Log)
+    .PARAMETER MatchConditions
+        Array of match conditions
+    .PARAMETER RateLimitThreshold
+        Rate limit threshold (for RateLimitRule)
+    .PARAMETER RateLimitDurationInMinutes
+        Rate limit duration (for RateLimitRule)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Name,
+        
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, 100)]
+        [int]$Priority,
+        
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("MatchRule", "RateLimitRule")]
+        [string]$RuleType,
+        
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("Allow", "Block", "Log")]
+        [string]$Action,
+        
+        [Parameter(Mandatory = $true)]
+        [hashtable[]]$MatchConditions,
+        
+        [Parameter(Mandatory = $false)]
+        [int]$RateLimitThreshold,
+        
+        [Parameter(Mandatory = $false)]
+        [int]$RateLimitDurationInMinutes
+    )
+    
+    try {
+        Write-Host "$(printf '\u2139') Creating WAF custom rule: $Name..." -ForegroundColor Blue
+        
+        $matchConditionObjects = @()
+        foreach ($condition in $MatchConditions) {
+            $matchVariables = @()
+            foreach ($variable in $condition.MatchVariables) {
+                $matchVar = New-AzApplicationGatewayFirewallMatchVariable `
+                    -VariableName $variable.VariableName
+                if ($variable.Selector) {
+                    $matchVar.Selector = $variable.Selector
+                }
+                $matchVariables += $matchVar
+            }
+            
+            $matchCondition = New-AzApplicationGatewayFirewallCondition `
+                -MatchVariable $matchVariables `
+                -Operator $condition.Operator `
+                -MatchValue $condition.MatchValues `
+                -Transform $condition.Transforms `
+                -NegationCondition $condition.NegationCondition
+            
+            $matchConditionObjects += $matchCondition
+        }
+        
+        $customRuleParams = @{
+            Name = $Name
+            Priority = $Priority
+            RuleType = $RuleType
+            MatchCondition = $matchConditionObjects
+            Action = $Action
+        }
+        
+        if ($RuleType -eq "RateLimitRule") {
+            $customRuleParams.RateLimitThreshold = $RateLimitThreshold
+            $customRuleParams.RateLimitDurationInMinutes = $RateLimitDurationInMinutes
+        }
+        
+        $customRule = New-AzApplicationGatewayFirewallCustomRule @customRuleParams
+        
+        Write-Host "$(printf '\u2713') WAF custom rule '$Name' created successfully" -ForegroundColor Green
+        return $customRule
+    }
+    catch {
+        Write-Error "Failed to create WAF custom rule '$Name': $($_.Exception.Message)"
+        throw
+    }
+}
+
 # Export all functions
-Export-ModuleMember -Function New-ApplicationGatewayIPConfiguration, New-ApplicationGatewayFrontendConfiguration, New-ApplicationGatewayFrontendPort, New-ApplicationGatewayBackendConfiguration, New-ApplicationGatewayListener, New-ApplicationGatewayRoutingRule, New-ApplicationGatewaySSLPolicy, New-ApplicationGatewayAutoscaleConfiguration, New-ApplicationGatewayWAFConfiguration, New-ApplicationGatewaySku
+Export-ModuleMember -Function New-ApplicationGatewayIPConfiguration, New-ApplicationGatewayFrontendConfiguration, New-ApplicationGatewayFrontendPort, New-ApplicationGatewayBackendConfiguration, New-ApplicationGatewayListener, New-ApplicationGatewayRoutingRule, New-ApplicationGatewaySSLPolicy, New-ApplicationGatewayAutoscaleConfiguration, New-ApplicationGatewayWAFConfiguration, New-ApplicationGatewaySku, New-ApplicationGatewayTags, New-ApplicationGatewayHealthProbe, New-ApplicationGatewayUrlPathMap, New-ApplicationGatewayRedirectConfiguration, New-ApplicationGatewayRewriteRuleSet, New-ApplicationGatewayWAFCustomRule
