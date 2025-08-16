@@ -1,206 +1,301 @@
-# ==============================================================================
-# Standard Application Gateway v2 - Parameter Configuration File
-# ==============================================================================
+# Application Gateway v2 Universal Parameter Configuration File
 #
 # PURPOSE:
-#   Example parameter configurations for Standard Application Gateway deployment
-#   Copy and modify these parameters for your specific environment
+#    Simplified parameter configurations for Application Gateway deployment
+#    Two parameter sets cover all deployment scenarios
 #
 # USAGE:
-#   1. Update the parameters below with your environment values
-#   2. Run: .\Deploy-StandardAppGateway.ps1 @StandardAppGatewayParams
+#   # Basic deployment for simple scenarios
+#   Import-Module .\AppGWv2-Parameters.psm1
+#   .\Deploy-AppGWv2.ps1 -ParameterSet "BasicAppGwParams"
 #
-# ==============================================================================
+#   # Advanced deployment with all features
+#   .\Deploy-AppGWv2.ps1 -ParameterSet "AdvancedAppGwParams"
+#
 
-# Example 1: Basic Standard_v2 Application Gateway (PublicOnly)
-$StandardAppGatewayParams = @{
-    # Subscription and Resource Group
+
+# Basic Application Gateway configuration (Standard_v2)
+# Supports all ConfigurationType options: "PublicOnly", "PrivateOnly", "Both"
+$BasicAppGwParams = @{
+    # Main Configuration
     SubscriptionName              = "kasdev"
     ResourceGroupName             = "kasdev-devtest-app-001"
     Location                      = "East US"
-    
-    # Application Gateway Configuration
-    ApplicationGatewayName        = "appgw-standard-v2"
-    SkuName                       = "Standard_v2"
-    SkuTier                       = "Standard_v2"
-    
-    # Network Configuration
-    VirtualNetworkName            = "test"
-    VNetResourceGroupName         = "appgw"  # Can be different from AppGW RG
-    SubnetName                    = "test1"
-    
-    # Public IP Configuration (for PublicOnly/Both configurations)
-    PublicIPName                  = "testpip"
-    PublicIPResourceGroupName     = "appgw"  # Can be different from AppGW RG
-    
-    # Configuration Type and Private IP (optional)
-    ConfigurationType             = "PublicOnly"  # PublicOnly, PrivateOnly, Both
-    PrivateIPAddress              = ""  # Required for PrivateOnly/Both
-    
-    # Backend Configuration
-    BackendAddresses              = @("google.com", "kasdevtech.com")
-    BackendPort                   = 80
-    BackendProtocol               = "Http"
-    
-    # Frontend Configuration
-    HttpPort                      = 80
-    HttpsPort                     = 443
-    EnableHttps                   = $true  # Enable HTTPS for secure communication
-
-    # Autoscaling Configuration
+    ApplicationGatewayName        = "appgw-basic-v2"
+    SkuName                       = "Standard_v2" # or "WAF_v2"
+    SkuTier                       = "Standard_v2" # or "WAF_v2"
+    ConfigurationType             = "PublicOnly" # Change to "PrivateOnly" or "Both" as needed
+    PrivateIPAddress              = ""
     MinCapacity                   = 2
     MaxCapacity                   = 4
     AvailabilityZones             = @()
+    OutputPath                    = ".\output"
+    WhatIf                        = $false
+
+    # Network Configuration
+    VirtualNetworkName            = "test"
+    VNetResourceGroupName         = "appgw"
+    SubnetName                    = "test1"
+    PublicIPName                  = "testpip"
+    PublicIPResourceGroupName     = "appgw"
     
-    # SSL Configuration
+    # Listeners Configuration
+    Listeners = @(
+        @{ Name = "HttpListener"; Type = "Http"; FrontendIP = "publicFrontendIP"; FrontendPort = 80 },
+        @{ Name = "CustomHttpListener"; Type = "Http"; FrontendIP = "publicFrontendIP"; FrontendPort = 8080 }
+    )
+      # Backend Settings Configuration
+    BackendSettings = @(
+        @{ Name = "WebAppSettings"; Protocol = "Http"; Port = 80; CookieAffinity = "Disabled"; ConnectionDrainingEnabled = $false; ConnectionDrainingTimeout = 20; RequestTimeout = 30; OverridePath = ""; HostNameOverrideEnabled = $false; HostNameOverrideValue = ""; CustomProbeEnabled = $false; CustomProbeName = "" },
+        @{ Name = "ApiSettings"; Protocol = "Http"; Port = 8080; CookieAffinity = "Disabled"; ConnectionDrainingEnabled = $true; ConnectionDrainingTimeout = 30; RequestTimeout = 60; OverridePath = "/api"; HostNameOverrideEnabled = $false; HostNameOverrideValue = ""; CustomProbeEnabled = $false; CustomProbeName = "" }
+    )
+
+    
+
+    # Backend Pools Configuration
+    BackendPools = @(
+        @{ Name = "WebAppPool"; Targets = @("10.0.2.10", "10.0.2.11", "10.0.2.12") },
+        @{ Name = "ApiPool"; Targets = @("10.0.3.10", "10.0.3.11") }
+    )
+    
+    # Routing Rules Configuration
+    RoutingRules = @(
+        @{ Name = "HttpToHttpsRedirect"; Priority = 100; ListenerName = "HttpListener"; BackendPoolName = "WebAppPool"; BackendSettingsName = "WebAppSettings" },
+        @{ Name = "WebAppRule"; Priority = 200; ListenerName = "CustomHttpListener"; BackendPoolName = "ApiPool"; BackendSettingsName = "ApiSettings" }
+    )
+    
+    # SSL and Security Configuration
     SslPolicyType                 = "Predefined"
     SslPolicyName                 = "AppGwSslPolicy20220101S"
-    
-    # Advanced Configuration
-    HttpsListenerName             = "myHttpsListener"
+    EnableWAF                     = $false
+    WAFMode                       = "Detection"
+    WAFRuleSetVersion             = "3.2"
+    EnableHttps                   = $false
+    HttpsListenerName             = ""
     EnableHttp2                   = $true
-    CookieBasedAffinity           = "Disabled"
-    RequestTimeout                = 30
 
-    # Key Vault for certificates (optional)
-    SslCertificateName            = "kasi"
-    KeyVaultSecretId              = "https://kskv-001.vault.azure.net/secrets/cert/edf00e59d1a246a1a2b967d6694ffbc9"
+    # Advanced Features Configuration
+    Tags = @{
+        DeploymentType = "Github-Actions"
+       
+    }
 
-    # Deployment Options
-    WhatIf                        = $false
-    OutputPath                    = ".\output"
+    # Health Probes Configuration
+    HealthProbes = @(
+        @{
+            Name = "DefaultHealthProbe"
+            Protocol = "Http"
+            Host = "127.0.0.1"
+            Path = "/health"
+            Interval = 30
+            Timeout = 30
+            UnhealthyThreshold = 3
+            StatusCodes = @("200-399")
+        }
+    )
+
+    # URL Path Maps Configuration  
+    UrlPathMaps = @()
+
+    # Redirect Configurations
+    RedirectConfigurations = @()
+
+    # Rewrite Rule Sets Configuration
+    RewriteRuleSets = @()
+
+    # WAF Custom Rules Configuration
+    WAFCustomRules = @()    
+    
+
 }
 
-# Example 2: WAF_v2 Application Gateway with HTTPS (Both Public and Private)
-$WAFAppGatewayParams = @{
-    # Subscription and Resource Group
+# Advanced Application Gateway configuration with all features
+# ConfigurationType options: "PublicOnly", "PrivateOnly", or "Both" - all configurations will work
+$AdvancedAppGwParams = @{
+    # Main Configuration
     SubscriptionName              = "kasdev"
     ResourceGroupName             = "kasdev-devtest-app-001"
     Location                      = "East US"
-    
-    # Application Gateway Configuration
-    ApplicationGatewayName        = "appgw-waf-v2-prod"
-    SkuName                       = "WAF_v2"
-    SkuTier                       = "WAF_v2"
-    
+    ApplicationGatewayName        = "appgw-basic-v2"
+    SkuName                       = "Standard_v2"
+    SkuTier                       = "Standard_v2"
+    ConfigurationType             = "PublicOnly" # Change to "PublicOnly" or "PrivateOnly" or Both as needed
+    PrivateIPAddress              = ""
+    MinCapacity                   = 2
+    MaxCapacity                   = 3
+    AvailabilityZones             = @()
+    OutputPath                    = ".\output"
+    WhatIf                        = $false
+
     # Network Configuration
-    VirtualNetworkName            = "vnet-prod-eastus"
-    VNetResourceGroupName         = "kasdev-devtest-app-001"
-    SubnetName                    = "snet-appgw-prod"
+    VirtualNetworkName            = "test"
+    VNetResourceGroupName         = "appgw"
+    SubnetName                    = "test1"
+    PublicIPName                  = "testpip"
+    PublicIPResourceGroupName     = "appgw"
     
-    # Public IP Configuration
-    PublicIPName                  = "pip-appgw-waf-prod"
-    PublicIPResourceGroupName     = "kasdev-devtest-app-001"
+    # Frontend Ports Configuration
+    FrontendPorts = @(
+        @{ Name = "HttpPort"; Port = 80 },        @{ Name = "HttpsPort"; Port = 443 }
+    )
+
+    # SSL Certificates Configuration
+    SslCertificates = @(
+        @{
+            Name = "mycert"
+            KeyVaultSecretId = "https://kskv-001.vault.azure.net/secrets/cert/edf00e59d1a246a1a2b967d6694ffbc9"
+        }
+    )
     
-    # Configuration Type and Private IP
-    ConfigurationType             = "Both"  # Both public and private frontends
-    PrivateIPAddress              = "10.0.1.100"
+    # Custom Probes Configuration
+    CustomProbes = @()
     
-    # Backend Configuration
-    BackendAddresses              = @("app1.contoso.com", "app2.contoso.com")
-    BackendPort                   = 443
-    BackendProtocol               = "Https"
+    # Listeners Configuration
+    Listeners = @(
+        @{ Name = "HttpListener"; Type = "Http"; FrontendIP = "publicFrontendIP"; FrontendPort = 80 },
+        @{ Name = "HttpsListener"; Type = "Https"; FrontendIP = "publicFrontendIP"; FrontendPort = 443; SslCertificateName = "mycert" }
+    )
+
+    # Backend Settings Configuration
+    BackendSettings = @(
+        @{ 
+            Name = "WebAppSettings"
+            Protocol = "Http"
+            Port = 80
+            CookieAffinity = "Disabled"
+            ConnectionDrainingEnabled = $false
+            ConnectionDrainingTimeout = 20
+            RequestTimeout = 30
+            OverridePath = ""
+            HostNameOverrideEnabled = $false
+            HostNameOverrideValue = ""
+            CustomProbeEnabled = $true
+            CustomProbeName = "WebAppProbe-001"
+        },        
+        @{ 
+            Name = "HttpsSettings"
+            Protocol = "Https"
+            Port = 443
+            CookieAffinity = "Enabled"
+            ConnectionDrainingEnabled = $false
+            ConnectionDrainingTimeout = 30
+            RequestTimeout = 60
+            OverridePath = ""
+            HostNameOverrideEnabled = $true
+            HostNameOverrideValue = ""
+            CustomProbeEnabled = $true
+            CustomProbeName = "custom-Probe-001"
+        }
+    )
+
+    # Backend Pools Configuration
+    BackendPools = @(
+        @{ Name = "WebAppPool"; Targets = @("kasdevtech.com") },
+        @{ Name = "ApiPool"; Targets = @("google.com") }
+    )
+
+    # Routing Rules Configuration
+    RoutingRules = @(
+        @{ Name = "HttpToHttpsRedirect"; Priority = 100; ListenerName = "HttpListener"; BackendPoolName = "WebAppPool"; BackendSettingsName = "WebAppSettings" },
+        @{ Name = "WebAppRule"; Priority = 200; ListenerName = "HttpsListener"; BackendPoolName = "ApiPool"; BackendSettingsName = "HttpsSettings" }
+    )
     
-    # Frontend Configuration
-    HttpPort                      = 80
-    HttpsPort                     = 443
-    EnableHttps                   = $true
+ 
     
-    # Autoscaling Configuration
-    MinCapacity                   = 3
-    MaxCapacity                   = 20
-    AvailabilityZones             = @("1", "2", "3")
-    
-    # SSL Configuration
-    SslPolicyType                 = "Predefined"
-    SslPolicyName                 = "AppGwSslPolicy20220101S"
-    
-    # WAF Configuration
+
+        # WAF Configuration
     EnableWAF                     = $true
     WAFMode                       = "Prevention"
     WAFRuleSetVersion             = "3.2"
-    
-    # Advanced Configuration
-    EnableHttp2                   = $true
-    CookieBasedAffinity           = "Enabled"
-    RequestTimeout                = 60
-    
-    # Deployment Options
-    WhatIf                        = $false
-    OutputPath                    = ".\output"
-}
 
-# Example 3: Private-Only Application Gateway (Internal Load Balancer)
-$PrivateOnlyAppGatewayParams = @{
-    # Subscription and Resource Group
-    SubscriptionName              = "aa-ba-nonprod-spoke"
-    ResourceGroupName             = "rg-appgw-internal"
-    Location                      = "East US"
+    # WAF Custom Rules Configuration
+    WAFCustomRules = @(
+        @{
+            Name = "RateLimitRule"
+            Priority = 100
+            RuleType = "RateLimitRule"
+            RateLimitDuration = "OneMin"
+            RateLimitThreshold = 100
+            MatchConditions = @(
+                @{
+                    MatchVariables = @(@{ VariableName = "RemoteAddr" })
+                    Operator = "IPMatch"
+                    MatchValues = @("0.0.0.0/0")
+                }
+            )
+            Action = "Block"
+        }
+    )
+
+
+
+    # Tags Configuration
+       Tags = @{
+        DeploymentType = "Github-Actions"
+       
+    }
+
+    # Health Probes Configuration
+    HealthProbes = @(
+        @{
+            Name = "WebAppProbe-001"
+            Protocol = "Http"
+            Host = "kasdevtech.com"
+            Path = "/health"
+            Interval = 30
+            Timeout = 30
+            UnhealthyThreshold = 3
+            StatusCodes = @("200-399")
+        },
+        @{
+            Name = "custom-Probe-001"
+            Protocol = "Https"
+            Host = "google.com"
+            Path = ""
+            Interval = 15
+            Timeout = 30
+            UnhealthyThreshold = 2
+            StatusCodes = @("200", "202")
+        }
+    )
     
-    # Application Gateway Configuration
-    ApplicationGatewayName        = "appgw-internal-v2"
-    SkuName                       = "Standard_v2"
-    SkuTier                       = "Standard_v2"
-    
-    # Network Configuration
-    VirtualNetworkName            = "vnet-hub-eastus"
-    VNetResourceGroupName         = "rg-network-shared"
-    SubnetName                    = "snet-appgw-internal"
-    
-    # Configuration Type and Private IP (required for private-only)
-    ConfigurationType             = "PrivateOnly"
-    PrivateIPAddress              = "10.0.1.200"
-    
-    # Backend Configuration
-    BackendAddresses              = @("10.0.3.10", "10.0.3.11", "10.0.3.12")
-    BackendPort                   = 8080
-    BackendProtocol               = "Http"
-    
-    # Frontend Configuration
-    HttpPort                      = 80
-    HttpsPort                     = 443
-    EnableHttps                   = $false
-    
-    # Autoscaling Configuration
-    MinCapacity                   = 2
-    MaxCapacity                   = 8
-    AvailabilityZones             = @("1", "2", "3")
-    
-    # SSL Configuration
+    # URL Path Maps Configuration  
+    UrlPathMaps = @()
+
+    # Redirect Configurations
+    RedirectConfigurations = @()
+
+    # Rewrite Rule Sets Configuration
+    RewriteRuleSets = @()
+
+    # SSL and Security Configuration
     SslPolicyType                 = "Predefined"
     SslPolicyName                 = "AppGwSslPolicy20220101S"
-    
-    # Advanced Configuration
+    EnableHttps                   = $true
+    HttpsListenerName             = "HttpsListener"
     EnableHttp2                   = $true
-    CookieBasedAffinity           = "Disabled"
-    RequestTimeout                = 30
-    
-    # Deployment Options
-    WhatIf                        = $true  # Preview mode
-    OutputPath                    = ".\output"
+
+    # Identity Configuration
+    UserAssignedIdentities        = @("/subscriptions/482d2c7b-7de6-45ff-a073-c1ddfc44a3f7/resourcegroups/kasdev-devtest-app-001/providers/Microsoft.ManagedIdentity/userAssignedIdentities/appgw-mi")
+
+
 }
 
-# ==============================================================================
-# Usage Examples:
-# ==============================================================================
-#
+# Usage Examples
 # Import the module first:
-# Import-Module .\StandardAppGateway-Parameters.psm1
+# Import-Module .\AppGWv2-Parameters.psm1
 #
-# Then deploy using the parameter sets:
-# .\Deploy-StandardAppGateway.ps1 @StandardAppGatewayParams
-# .\Deploy-StandardAppGateway.ps1 @WAFAppGatewayParams
-# .\Deploy-StandardAppGateway.ps1 @PrivateOnlyAppGatewayParams
-#
-# ==============================================================================
+# Then deploy using the unified script:
+# .\Deploy-AppGateway.ps1 -AppGatewayConfiguration $BasicAppGwParams
+# .\Deploy-AppGateway.ps1 -ParameterSet "BasicAppGwParams"
+# .\Deploy-AppGateway.ps1 -AppGatewayConfiguration $AdvancedAppGwParams
 
-# ==============================================================================
-# PARAMETER DESCRIPTIONS
-# ==============================================================================
 
+
+# Parameter Descriptions
 <#
-SubscriptionName          : Azure subscription name (must start with "aa-ba-")
-ResourceGroupName         : Resource group containing the Application Gateway
+SubscriptionName          : Azure subscription name
+ResourceGroupName         : Resource group containing the Application Gateway (tags will be inherited from RG)
 ApplicationGatewayName    : Name for the Application Gateway
 Location                  : Azure region for deployment
 VirtualNetworkName        : Virtual Network name (must exist)
@@ -233,10 +328,43 @@ WhatIf                    : Preview deployment without creating resources
 OutputPath                : Path for deployment output files
 #>
 
+# Functions to get parameter sets
+function Get-BasicAppGwParams { return $BasicAppGwParams }
+function Get-AdvancedAppGwParams { return $AdvancedAppGwParams }
+
+# Smart Configuration Function - Automatically selects best configuration
+function Get-AppGatewayConfiguration {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet("BasicAppGwParams", "AdvancedAppGwParams")]
+        [string]$ParameterSet,
+        
+        [Parameter(Mandatory = $false)]
+        [hashtable]$CustomSettings = @{}
+    )
+    
+    $baseConfig = switch ($ParameterSet) {
+        "BasicAppGwParams" { $BasicAppGwParams.Clone() }
+        "AdvancedAppGwParams" { $AdvancedAppGwParams.Clone() }
+    }
+    
+    # Merge custom settings
+    foreach ($key in $CustomSettings.Keys) {
+        $baseConfig[$key] = $CustomSettings[$key]
+    }
+    
+    return $baseConfig
+}
+
 # Export parameter sets for easy import
+Export-ModuleMember -Function @(
+    'Get-BasicAppGwParams',
+    'Get-AdvancedAppGwParams',
+    'Get-AppGatewayConfiguration'
+)
+
 Export-ModuleMember -Variable @(
-    'StandardAppGatewayParams',
-    'WAFAppGatewayParams',
-    'PrivateOnlyAppGatewayParams'
+    'BasicAppGwParams',
+    'AdvancedAppGwParams'
 )
 
