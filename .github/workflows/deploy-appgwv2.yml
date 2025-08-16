@@ -10,7 +10,11 @@ on:
       resource_group_name:
         description: 'Resource Group name override (optional)'
         required: false
-        type: string      
+        type: string
+      app_gateway_name:
+        description: 'Application Gateway name override (optional)'
+        required: false
+        type: string        
       paramset:
         description: 'Parameter set from AppGWv2-Parameters.psm1'
         required: true
@@ -95,6 +99,11 @@ jobs:
           # Set WhatIf mode from input
           $config.WhatIf = [System.Convert]::ToBoolean("${{ github.event.inputs.whatif }}")
           
+          # Override Application Gateway name if provided
+          if ("${{ github.event.inputs.app_gateway_name }}" -ne "") {
+            $config.ApplicationGatewayName = "${{ github.event.inputs.app_gateway_name }}"
+          }
+          
           # Override Resource Group name if provided
           if ("${{ github.event.inputs.resource_group_name }}" -ne "") {
             $config.ResourceGroupName = "${{ github.event.inputs.resource_group_name }}"
@@ -107,7 +116,7 @@ jobs:
           
           # Add GitHub Actions run context to the name for uniqueness
           if (-not $config.WhatIf) {
-            $config.ApplicationGatewayName = "$($config.ApplicationGatewayName)-${{ github.run_number }}"
+            $config.ApplicationGatewayName = "$($config.ApplicationGatewayName)"
           }
           
           Write-Host "[INFO] Deployment Configuration:" -ForegroundColor Cyan
@@ -136,6 +145,7 @@ jobs:
           Write-Host "=== Deployment Summary ===" -ForegroundColor Green
           Write-Host "Parameter Set: ${{ github.event.inputs.paramset }}" -ForegroundColor White
           Write-Host "WhatIf Mode: ${{ github.event.inputs.whatif }}" -ForegroundColor White
+          Write-Host "Application Gateway: ${{ github.event.inputs.app_gateway_name || 'Default from parameter set' }}" -ForegroundColor White
           Write-Host "Resource Group: ${{ github.event.inputs.resource_group_name || 'Default from parameter set' }}" -ForegroundColor White
           Write-Host "Subscription: ${{ github.event.inputs.subscription_name || 'Default from parameter set' }}" -ForegroundColor White
           Write-Host "GitHub Run: ${{ github.run_number }}" -ForegroundColor White
